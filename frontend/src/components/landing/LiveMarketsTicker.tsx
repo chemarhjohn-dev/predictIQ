@@ -70,6 +70,17 @@ export function LiveMarketsTicker() {
   const { data, status, retry } = useAsync<FeaturedMarket[]>(fetchMarkets, { immediate: true });
   const markets = (Array.isArray(data) ? data : []).slice(0, MAX_ROWS);
 
+  // Guard against duplicate in-flight retries: while a retry is loading, the
+  // button is disabled and further clicks are no-ops, so a rapid double-click
+  // results in a single network call to getFeaturedMarkets.
+  const retryInFlight = status === 'loading';
+  const handleRetry = React.useCallback(() => {
+    if (retryInFlight) {
+      return;
+    }
+    retry();
+  }, [retry, retryInFlight]);
+
   return (
     // A plain div, not <aside>: it already sits inside the hero <section>,
     // which itself is a labelled (and therefore landmark) region - nesting a
@@ -94,8 +105,14 @@ export function LiveMarketsTicker() {
       {status === 'error' && (
         <div className="live-ticker__status" role="alert" aria-live="assertive">
           <p>Unable to load live markets right now.</p>
-          <button type="button" className="retry-button" onClick={retry}>
-            Retry
+          <button
+            type="button"
+            className="retry-button"
+            onClick={handleRetry}
+            disabled={retryInFlight}
+            aria-busy={retryInFlight}
+          >
+            {retryInFlight ? 'Retrying…' : 'Retry'}
           </button>
         </div>
       )}
