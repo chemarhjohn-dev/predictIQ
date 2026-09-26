@@ -26,16 +26,43 @@ const STATUS_LABEL: Record<RowStatus, string> = {
   resolved: 'Resolved',
 };
 
-const volumeFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
+// Assets that are fiat-equivalent and can be rendered with a currency symbol.
+// Anything else (e.g. XLM or other supported tokens) falls back to a neutral
+// numeric format so we never show a misleading `$` value.
+const FIAT_CURRENCIES: Record<string, string> = {
+  USD: 'USD',
+  USDC: 'USD',
+  USDT: 'USD',
+};
+
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+
+function getCurrencyFormatter(currency: string): Intl.NumberFormat {
+  let formatter = currencyFormatters.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    });
+    currencyFormatters.set(currency, formatter);
+  }
+  return formatter;
+}
+
+const neutralFormatter = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 1,
 });
 
-function formatVolume(raw: string): string {
+function formatVolume(raw: string, asset?: string | null): string {
   const value = Number.parseFloat(raw);
-  return Number.isFinite(value) ? volumeFormatter.format(value) : raw;
+  if (!Number.isFinite(value)) {
+    return raw;
+  }
+  const currency = asset ? FIAT_CURRENCIES[asset.toUpperCase()] : undefined;
+  return currency ? getCurrencyFormatter(currency).format(value) : neutralFormatter.format(value);
 }
 
 export function LiveMarketsTicker() {
@@ -89,7 +116,7 @@ export function LiveMarketsTicker() {
                     {STATUS_LABEL[rowStatus]}
                   </span>
                   <span className="live-ticker__volume mono tabular-nums">
-                    {formatVolume(market.volume)}
+                    {formatVolume(market.volume, market.settlement_asset)}
                   </span>
                 </a>
               </li>
